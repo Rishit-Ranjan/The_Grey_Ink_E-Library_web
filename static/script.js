@@ -1,7 +1,7 @@
 const quoteContent = document.getElementById('quote-content');
 const quoteAuthor = document.getElementById('quote-author');
 
-document.body.style.setProperty('color', 'white', 'important');
+
 
 if (quoteContent && quoteAuthor) {
     fetch('https://dummyjson.com/quotes/random')

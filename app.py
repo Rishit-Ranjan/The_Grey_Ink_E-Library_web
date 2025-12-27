@@ -4,24 +4,85 @@ import numpy as np
 import requests
 import json
 import os
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
-USERS_FILE = 'users.json'
+# Database Configuration
+# Render and other cloud providers typically provide a DATABASE_URL
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-def load_users():
-    if os.path.exists(USERS_FILE):
-        try:
-            with open(USERS_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    return {}
+# Fallback for local development if DATABASE_URL is not set
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_USER = os.environ.get('DB_USER', 'postgres')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'root')
+DB_NAME = os.environ.get('DB_NAME', 'library_db')
 
-def save_users():
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f)
+def get_db_connection():
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    else:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            dbname=DB_NAME
+        )
+    return conn
 
-users = load_users()
+def init_db():
+    try:
+        # Connect to default 'postgres' database to create our db if it doesn't exist
+        # Note: In production (Render), the DB is usually already created.
+        # This part handles local setup or environments where we have admin access.
+        if not DATABASE_URL:
+            try:
+                conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname='postgres')
+                conn.autocommit = True
+                cursor = conn.cursor()
+                cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{DB_NAME}'")
+                exists = cursor.fetchone()
+                if not exists:
+                    cursor.execute(f"CREATE DATABASE {DB_NAME}")
+                    print(f"Database {DB_NAME} created.")
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                print(f"Database creation check skipped/failed: {e}")
+
+        conn = get_db_connection()
+        cwd = conn.cursor()
+        
+        # Create Tables
+        # PostgreSQL uses SERIAL for auto-incrementing integers
+        cwd.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            joined_date VARCHAR(50)
+        )
+        """)
+        
+        cwd.execute("""
+        CREATE TABLE IF NOT EXISTS user_books (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            book_title VARCHAR(255),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """)
+        conn.commit()
+        cwd.close()
+        conn.close()
+        print("Database tables initialized successfully.")
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+
+# Initialize Database
+init_db()
 
 popular_df = pickle.load(open("popular.pkl", 'rb'))
 pt = pickle.load(open("pt.pkl",'rb'))
@@ -152,13 +213,25 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user_data = users.get(username)
-        if user_data and user_data['password'] == password:
-            session['user'] = username
-            return redirect(url_for('index'))
-        else:
-            flash('Invalid username or password', 'login_error')
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+            user = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if user:
+                session['user'] = username
+                return redirect(url_for('index'))
+            else:
+                flash('Invalid username or password', 'login_error')
+                return redirect(url_for('login'))
+        except Exception as e:
+            flash(f'Database error: {str(e)}', 'login_error')
             return redirect(url_for('login'))
+            
     return render_template('login.html', panel='login')
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -166,33 +239,67 @@ def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        if username in users:
-            flash('Username already exists!', 'signup_error')
-            return redirect(url_for('signup'))
+        email = request.form.get('email', '')
+        joined_date = datetime.now().strftime("%B %d, %Y")
         
-        users[username] = {
-            'password': password,
-            'email': request.form.get('email', ''),
-            'joined_date': datetime.now().strftime("%B %d, %Y"),
-            'my_books': []
-        }
-        save_users()
-        session['user'] = username
-        return redirect(url_for('index'))
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                flash('Username already exists!', 'signup_error')
+                return redirect(url_for('signup'))
+            
+            cursor.execute("INSERT INTO users (username, password, email, joined_date) VALUES (%s, %s, %s, %s)", 
+                           (username, password, email, joined_date))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            session['user'] = username
+            return redirect(url_for('index'))
+        except Exception as e:
+            flash(f'Signup failed: {str(e)}', 'signup_error')
+            return redirect(url_for('signup'))
+
     return render_template('login.html', panel='signup')
 
 @app.route('/profile')
 def profile():
     if 'user' not in session:
         return redirect(url_for('login'))
-    user = session['user']
-    user_data = users.get(user, {})
+        
+    username = session['user']
+    book_count = 0
+    email = 'Not provided'
+    joined_date = 'Unknown'
     
-    email = user_data.get('email', 'Not provided')
-    joined_date = user_data.get('joined_date', 'Unknown')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user_data = cursor.fetchone()
+        
+        if user_data:
+            email = user_data.get('email', 'Not provided')
+            joined_date = user_data.get('joined_date', 'Unknown')
+            
+            cursor.execute("SELECT count(*) as count FROM user_books WHERE user_id = %s", (user_data['id'],))
+            res = cursor.fetchone()
+            if res:
+                book_count = res['count']
+                
+        cursor.close()
+        conn.close()
+    except:
+        pass
     
-    return render_template('profile.html', username=user, 
-                           book_count=len(user_data.get('my_books', [])),
+    return render_template('profile.html', username=username, 
+                           book_count=book_count,
                            email=email, joined_date=joined_date)
 
 @app.route('/my_books')
@@ -201,15 +308,31 @@ def my_books():
         return redirect(url_for('login'))
 
     user = session['user']
-    saved_book_titles = users.get(user, {}).get('my_books', [])
-    
     saved_books_details = []
-    if saved_book_titles:
-        # Filter the main books DataFrame to get details for all saved books at once
-        saved_books_df = books[books['Book-Title'].isin(saved_book_titles)].drop_duplicates('Book-Title').set_index('Book-Title')
-        # Reorder to match the user's saved order
-        saved_books_df = saved_books_df.reindex(saved_book_titles).reset_index()
-        saved_books_details = saved_books_df.to_dict('records')
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT id FROM users WHERE username = %s", (user,))
+        u = cursor.fetchone()
+        
+        if u:
+            cursor.execute("SELECT book_title FROM user_books WHERE user_id = %s", (u['id'],))
+            saved_book_titles = [row['book_title'] for row in cursor.fetchall()]
+            
+            if saved_book_titles:
+                # Filter the main books DataFrame to get details for all saved books at once
+                saved_books_df = books[books['Book-Title'].isin(saved_book_titles)].drop_duplicates('Book-Title').set_index('Book-Title')
+                # Reorder to match the user's saved order (if possible, though DB select doesn't guarantee order without separate ordinal column, iterating through list is safer if order matters, but here just bulk fetch)
+                # To be safe against missing books in DF:
+                existing_titles = [t for t in saved_book_titles if t in saved_books_df.index]
+                saved_books_df = saved_books_df.reindex(existing_titles).reset_index()
+                saved_books_details = saved_books_df.to_dict('records')
+        
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(e)
 
     return render_template('my_books.html', saved_books=saved_books_details)
 
@@ -217,20 +340,56 @@ def my_books():
 def add_to_my_books():
     if 'user' not in session:
         return redirect(url_for('login'))
+        
     book_title = request.form.get('book_title')
-    if book_title and book_title not in users[session['user']]['my_books']:
-        users[session['user']]['my_books'].append(book_title)
-        save_users()
+    username = session['user']
+    
+    if book_title:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            res = cursor.fetchone()
+            if res:
+                user_id = res[0]
+                cursor.execute("SELECT * FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
+                if not cursor.fetchone():
+                    cursor.execute("INSERT INTO user_books (user_id, book_title) VALUES (%s, %s)", (user_id, book_title))
+                    conn.commit()
+            
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            print(e)
+            
     return redirect(request.referrer or url_for('index'))
 
 @app.route('/remove_from_my_books', methods=['POST'])
 def remove_from_my_books():
     if 'user' not in session:
         return redirect(url_for('login'))
+        
     book_title = request.form.get('book_title')
-    if book_title and book_title in users[session['user']]['my_books']:
-        users[session['user']]['my_books'].remove(book_title)
-        save_users()
+    username = session['user']
+    
+    if book_title:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            res = cursor.fetchone()
+            if res:
+                user_id = res[0]
+                cursor.execute("DELETE FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
+                conn.commit()
+                
+            cursor.close()
+            conn.close()
+        except:
+            pass
+            
     return redirect(request.referrer or url_for('my_books'))
 
 @app.route('/logout')

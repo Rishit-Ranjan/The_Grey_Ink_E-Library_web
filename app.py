@@ -4,6 +4,7 @@ import numpy as np
 import requests
 import json
 import os
+from datetime import datetime
 
 USERS_FILE = 'users.json'
 
@@ -168,7 +169,13 @@ def signup():
         if username in users:
             flash('Username already exists!', 'signup_error')
             return redirect(url_for('signup'))
-        users[username] = {'password': password, 'my_books': []}
+        
+        users[username] = {
+            'password': password,
+            'email': request.form.get('email', ''),
+            'joined_date': datetime.now().strftime("%B %d, %Y"),
+            'my_books': []
+        }
         save_users()
         session['user'] = username
         return redirect(url_for('index'))
@@ -180,7 +187,13 @@ def profile():
         return redirect(url_for('login'))
     user = session['user']
     user_data = users.get(user, {})
-    return render_template('profile.html', username=user, book_count=len(user_data.get('my_books', [])))
+    
+    email = user_data.get('email', 'Not provided')
+    joined_date = user_data.get('joined_date', 'Unknown')
+    
+    return render_template('profile.html', username=user, 
+                           book_count=len(user_data.get('my_books', [])),
+                           email=email, joined_date=joined_date)
 
 @app.route('/my_books')
 def my_books():

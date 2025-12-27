@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='assets/logo21.png') }}">
 </head>
+
 <body>
     <a href="{{ url_for('index') }}" class="home-link">← Back to Home</a>
     <div class="container {% if panel == 'signup' %}right-panel-active{% endif %}" id="container">
@@ -19,13 +21,13 @@
                 <input type="password" name="password" placeholder="Password" required>
                 <button type="submit">Sign Up</button>
                 {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            {% if category == 'signup_error' %}
-                                <p class="error">{{ message }}</p>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
+                {% if messages %}
+                {% for category, message in messages %}
+                {% if category == 'signup_error' %}
+                <p class="error">{{ message }}</p>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
                 {% endwith %}
             </form>
         </div>
@@ -38,14 +40,14 @@
                 <input type="password" name="password" placeholder="Password" required>
                 <a href="#">Forgot Your Password?</a>
                 <button type="submit">Sign In</button>
-                 {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            {% if category == 'login_error' %}
-                                <p class="error">{{ message }}</p>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                {% if category == 'login_error' %}
+                <p class="error">{{ message }}</p>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
                 {% endwith %}
             </form>
         </div>
@@ -67,6 +69,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script1.js') }}"></script>
 </body>
+
 </html>

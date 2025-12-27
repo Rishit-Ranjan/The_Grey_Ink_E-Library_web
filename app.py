@@ -28,11 +28,21 @@ def index():
         data = []
         try:
             # Find the index of the book in the pivot table
-            index = np.where(pt.index == user_input)[0][0]
+            user_input_stripped = user_input.strip()
+            try:
+                book_index = np.where(pt.index == user_input_stripped)[0][0]
+            except IndexError:
+                match = next((title for title in pt.index if title.lower() == user_input_stripped.lower()), None)
+                if not match:
+                    match = next((title for title in pt.index if user_input_stripped.lower() in title.lower()), None)
+                if match:
+                    book_index = np.where(pt.index == match)[0][0]
+                else:
+                    raise IndexError
 
             # Get top 5 similar items
             similar_items = sorted(
-                list(enumerate(similarity_scores[index])),
+                list(enumerate(similarity_scores[book_index])),
                 key=lambda x: x[1],
                 reverse=True
             )[1:6]  # Top 5 recommendations
@@ -114,7 +124,9 @@ def signup():
 def profile():
     if 'user' not in session:
         return redirect(url_for('login'))
-    return render_template('profile.html') # You need to create profile.html
+    user = session['user']
+    user_data = users.get(user, {})
+    return render_template('profile.html', username=user, book_count=len(user_data.get('my_books', [])))
 
 @app.route('/my_books')
 def my_books():

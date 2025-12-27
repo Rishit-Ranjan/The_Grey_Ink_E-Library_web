@@ -1,8 +1,9 @@
 const quoteContent = document.getElementById('quote-content');
 const quoteAuthor = document.getElementById('quote-author');
 
-document.body.style.color = 'white';
+document.body.style.setProperty('color', 'white', 'important');
 
+if (quoteContent && quoteAuthor) {
     fetch('https://dummyjson.com/quotes/random')
       .then(response => response.json())
       .then(data => {
@@ -14,4 +15,5 @@ document.body.style.color = 'white';
         quoteContent.textContent = `"A room without books is like a body without a soul."`;
         quoteAuthor.textContent = `- Marcus Tullius Cicero`;
       });
+}
     

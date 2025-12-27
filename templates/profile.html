@@ -93,8 +93,7 @@
                             <span>{{ book_count }} / 50 Books</span>
                         </div>
                         <div class="progress-bar-bg">
-                            <!-- Inline style for dynamic width based on book_count -->
-                            <div class="progress-bar-fill" style="width: {{ (book_count / 50 * 100)|round }}%;"></div>
+                            <div class="progress-bar-fill" data-progress="{{ (book_count / 50 * 100)|round }}"></div>
                         </div>
                         <p class="goal-message">
                             Keep going! You are doing great on your journey to discover more books.
@@ -116,6 +115,19 @@
         </div>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // Animate progress bar
+        document.addEventListener('DOMContentLoaded', () => {
+            const bar = document.querySelector('.progress-bar-fill');
+            if (bar) {
+                const progress = bar.getAttribute('data-progress');
+                // Small delay to ensure transition effect works if enabled
+                setTimeout(() => {
+                    bar.style.width = progress + '%';
+                }, 100);
+            }
+        });
+    </script>
 </body>
 
 </html>

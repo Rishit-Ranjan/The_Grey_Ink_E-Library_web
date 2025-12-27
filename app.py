@@ -11,7 +11,7 @@ from datetime import datetime
 # MySQL Configuration
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
 DB_USER = os.environ.get('DB_USER', 'root')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', '') # Enter your MySQL password here
+DB_PASSWORD = os.environ.get('DB_PASSWORD', '1234') # Enter your MySQL password here
 DB_NAME = os.environ.get('DB_NAME', 'library_db')
 
 # JSON Storage Configuration (Fallback)

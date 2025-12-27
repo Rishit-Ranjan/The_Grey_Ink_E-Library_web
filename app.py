@@ -2,9 +2,25 @@ from flask import Flask, render_template, request, session, redirect, url_for, f
 import pickle
 import numpy as np
 import requests
+import json
+import os
 
-# Note: Using a simple dictionary for users. For a real application, use a database.
-users = {} # Structure: {'username': {'password': 'password123', 'my_books': ['Book Title 1', ...]}}
+USERS_FILE = 'users.json'
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_users():
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f)
+
+users = load_users()
 
 popular_df = pickle.load(open("popular.pkl", 'rb'))
 pt = pickle.load(open("pt.pkl",'rb'))
@@ -153,6 +169,7 @@ def signup():
             flash('Username already exists!', 'signup_error')
             return redirect(url_for('signup'))
         users[username] = {'password': password, 'my_books': []}
+        save_users()
         session['user'] = username
         return redirect(url_for('index'))
     return render_template('login.html', panel='signup')
@@ -190,6 +207,7 @@ def add_to_my_books():
     book_title = request.form.get('book_title')
     if book_title and book_title not in users[session['user']]['my_books']:
         users[session['user']]['my_books'].append(book_title)
+        save_users()
     return redirect(request.referrer or url_for('index'))
 
 @app.route('/remove_from_my_books', methods=['POST'])
@@ -199,6 +217,7 @@ def remove_from_my_books():
     book_title = request.form.get('book_title')
     if book_title and book_title in users[session['user']]['my_books']:
         users[session['user']]['my_books'].remove(book_title)
+        save_users()
     return redirect(request.referrer or url_for('my_books'))
 
 @app.route('/logout')

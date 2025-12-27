@@ -1,6 +1,8 @@
 const quoteContent = document.getElementById('quote-content');
 const quoteAuthor = document.getElementById('quote-author');
 
+document.body.style.color = 'white';
+
     fetch('https://dummyjson.com/quotes/random')
       .then(response => response.json())
       .then(data => {

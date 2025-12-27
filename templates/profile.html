@@ -1,251 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Grey Ink | Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
-    <style>
-        body {
-            background-color: #121212;
-            margin: 0;
-        }
+    <link rel="stylesheet" href="{{ url_for('static', filename='profile.css') }}">
 
-        :root {
-            --glass-bg: rgba(30, 30, 30, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-            --accent-color: #00d2ff;
-            --text-color: #ffffff;
-        }
-
-        .profile-main {
-            padding: 120px 20px 40px;
-            min-height: calc(100vh - 80px);
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            gap: 30px;
-            flex-wrap: wrap;
-        }
-
-        /* Left Sidebar - User Card */
-        .user-card {
-            flex: 1;
-            min-width: 300px;
-            max-width: 350px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 40px 30px;
-            text-align: center;
-            box-shadow: var(--glass-shadow);
-            color: var(--text-color);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .avatar-wrapper {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 20px;
-            position: relative;
-        }
-
-        .avatar {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            font-weight: 700;
-            border: 4px solid rgba(255,255,255,0.3);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-
-        .user-name {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .user-handle {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-bottom: 20px;
-            font-style: italic;
-        }
-
-        .user-details {
-            text-align: left;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .detail-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            font-size: 0.95rem;
-        }
-
-        .detail-label {
-            opacity: 0.7;
-        }
-
-        .detail-value {
-            font-weight: 600;
-        }
-
-        /* Right Content - Dashboard */
-        .dashboard-content {
-            flex: 2;
-            min-width: 300px;
-            max-width: 800px;
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-        }
-
-        .dashboard-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 30px;
-            color: var(--text-color);
-            box-shadow: var(--glass-shadow);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 10px;
-        }
-
-        .card-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 20px;
-        }
-
-        .stat-item {
-            background: rgba(0,0,0,0.2);
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        .stat-item:hover {
-            transform: translateY(-5px);
-            background: rgba(0,0,0,0.3);
-        }
-
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #ffd700;
-            display: block;
-        }
-
-        .stat-desc {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Reading Goal */
-        .goal-container {
-            margin-top: 10px;
-        }
-
-        .progress-bar-bg {
-            width: 100%;
-            height: 12px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 6px;
-            overflow: hidden;
-            margin: 15px 0 10px;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            border-radius: 6px;
-            width: 0%; /* JS will animate this */
-            transition: width 1s ease-in-out;
-        }
-
-        .goal-text {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-
-        /* Action Buttons */
-        .action-row {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-        }
-
-        .btn-action {
-            flex: 1;
-            padding: 12px;
-            border-radius: 10px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            text-align: center;
-            display: inline-block;
-        }
-
-        .btn-primary {
-            background: white;
-            color: #333;
-        }
-        .btn-primary:hover {
-            background: #f0f0f0;
-            transform: translateY(-2px);
-        }
-
-        .btn-danger {
-            background: rgba(255, 99, 71, 0.2);
-            color: #ff6b6b;
-            border: 1px solid #ff6b6b;
-        }
-        .btn-danger:hover {
-            background: #ff6b6b;
-            color: white;
-        }
-
-        /* Ensure background is dark */
-        .bg {
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d3436 100%);
-            min-height: 100vh;
-        }
-    </style>
 </head>
+
 <body>
     <div class="bg">
         <div class="main-header-section">
@@ -271,7 +35,7 @@
                         {{ username[0] }}
                     </div>
                 </div>
-                
+
                 <h2 class="user-name">{{ username }}</h2>
                 <div class="user-handle">@{{ username }}</div>
 
@@ -290,7 +54,7 @@
                     </div>
                 </div>
 
-                <div class="action-row" style="margin-top: 30px;">
+                <div class="action-row mt-30">
                     <a href="{{ url_for('logout') }}" class="btn-action btn-danger">Sign Out</a>
                 </div>
             </div>
@@ -332,7 +96,7 @@
                             <!-- Inline style for dynamic width based on book_count -->
                             <div class="progress-bar-fill" style="width: {{ (book_count / 50 * 100)|round }}%;"></div>
                         </div>
-                        <p style="font-size: 0.9rem; opacity: 0.7; margin-top: 10px;">
+                        <p class="goal-message">
                             Keep going! You are doing great on your journey to discover more books.
                         </p>
                     </div>
@@ -353,4 +117,5 @@
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
+
 </html>

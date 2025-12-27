@@ -14,6 +14,26 @@ DB_USER = os.environ.get('DB_USER', 'root')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', '') # Enter your MySQL password here
 DB_NAME = os.environ.get('DB_NAME', 'library_db')
 
+# JSON Storage Configuration (Fallback)
+USERS_FILE = 'users.json'
+users = {}
+DB_AVAILABLE = False
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_users():
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f)
+
+users = load_users()
+
 def get_db_connection():
     return mysql.connector.connect(
         host=DB_HOST,
@@ -23,6 +43,7 @@ def get_db_connection():
     )
 
 def init_db():
+    global DB_AVAILABLE
     try:
         conn = mysql.connector.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
         cursor = conn.cursor()
@@ -51,8 +72,10 @@ def init_db():
         cursor.close()
         conn.close()
         print("Database initialized successfully.")
+        DB_AVAILABLE = True
     except Exception as e:
-        print(f"Database initialization failed: {e}")
+        print(f"Database initialization failed: {e}. Falling back to JSON storage.")
+        DB_AVAILABLE = False
 
 # Initialize Database
 init_db()
@@ -187,23 +210,32 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
-            user = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            
-            if user:
+        if DB_AVAILABLE:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+                user = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                
+                if user:
+                    session['user'] = username
+                    return redirect(url_for('index'))
+            except Exception as e:
+                print(f"DB Error during login: {e}")
+        
+        # Fallback to local file check or if DB failed/returned nothing
+        # Note: If DB is available but user invalid, we shouldn't check file unless we treat them as separate.
+        # But for 'fallback' mode, usually we only check file if DB_AVAILABLE is False.
+        if not DB_AVAILABLE:
+            user_data = users.get(username)
+            if user_data and user_data['password'] == password:
                 session['user'] = username
                 return redirect(url_for('index'))
-            else:
-                flash('Invalid username or password', 'login_error')
-                return redirect(url_for('login'))
-        except Exception as e:
-            flash(f'Database error: {str(e)}', 'login_error')
-            return redirect(url_for('login'))
+        
+        flash('Invalid username or password', 'login_error')
+        return redirect(url_for('login'))
             
     return render_template('login.html', panel='login')
 
@@ -215,28 +247,44 @@ def signup():
         email = request.form.get('email', '')
         joined_date = datetime.now().strftime("%B %d, %Y")
         
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-            if cursor.fetchone():
+        if DB_AVAILABLE:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+                if cursor.fetchone():
+                    cursor.close()
+                    conn.close()
+                    flash('Username already exists!', 'signup_error')
+                    return redirect(url_for('signup'))
+                
+                cursor.execute("INSERT INTO users (username, password, email, joined_date) VALUES (%s, %s, %s, %s)", 
+                               (username, password, email, joined_date))
+                conn.commit()
                 cursor.close()
                 conn.close()
+                
+                session['user'] = username
+                return redirect(url_for('index'))
+            except Exception as e:
+                flash(f'Signup failed (DB): {str(e)}', 'signup_error')
+                return redirect(url_for('signup'))
+        else:
+            # Fallback to local file
+            if username in users:
                 flash('Username already exists!', 'signup_error')
                 return redirect(url_for('signup'))
             
-            cursor.execute("INSERT INTO users (username, password, email, joined_date) VALUES (%s, %s, %s, %s)", 
-                           (username, password, email, joined_date))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
+            users[username] = {
+                'password': password,
+                'email': email,
+                'joined_date': joined_date,
+                'my_books': []
+            }
+            save_users()
             session['user'] = username
             return redirect(url_for('index'))
-        except Exception as e:
-            flash(f'Signup failed: {str(e)}', 'signup_error')
-            return redirect(url_for('signup'))
 
     return render_template('login.html', panel='signup')
 
@@ -250,26 +298,33 @@ def profile():
     email = 'Not provided'
     joined_date = 'Unknown'
     
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-        user_data = cursor.fetchone()
-        
-        if user_data:
-            email = user_data.get('email', 'Not provided')
-            joined_date = user_data.get('joined_date', 'Unknown')
+    if DB_AVAILABLE:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
             
-            cursor.execute("SELECT count(*) as count FROM user_books WHERE user_id = %s", (user_data['id'],))
-            res = cursor.fetchone()
-            if res:
-                book_count = res['count']
+            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+            user_data = cursor.fetchone()
+            
+            if user_data:
+                email = user_data.get('email', 'Not provided')
+                joined_date = user_data.get('joined_date', 'Unknown')
                 
-        cursor.close()
-        conn.close()
-    except:
-        pass
+                cursor.execute("SELECT count(*) as count FROM user_books WHERE user_id = %s", (user_data['id'],))
+                res = cursor.fetchone()
+                if res:
+                    book_count = res['count']
+                    
+            cursor.close()
+            conn.close()
+        except:
+            pass
+    else:
+        # Fallback
+        user_data = users.get(username, {})
+        email = user_data.get('email', 'Not provided')
+        joined_date = user_data.get('joined_date', 'Unknown')
+        book_count = len(user_data.get('my_books', []))
     
     return render_template('profile.html', username=username, 
                            book_count=book_count,
@@ -281,31 +336,35 @@ def my_books():
         return redirect(url_for('login'))
 
     user = session['user']
-    saved_books_details = []
+    saved_book_titles = []
     
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id FROM users WHERE username = %s", (user,))
-        u = cursor.fetchone()
-        
-        if u:
-            cursor.execute("SELECT book_title FROM user_books WHERE user_id = %s", (u['id'],))
-            saved_book_titles = [row['book_title'] for row in cursor.fetchall()]
+    if DB_AVAILABLE:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id FROM users WHERE username = %s", (user,))
+            u = cursor.fetchone()
             
-            if saved_book_titles:
-                # Filter the main books DataFrame to get details for all saved books at once
-                saved_books_df = books[books['Book-Title'].isin(saved_book_titles)].drop_duplicates('Book-Title').set_index('Book-Title')
-                # Reorder to match the user's saved order (if possible, though DB select doesn't guarantee order without separate ordinal column, iterating through list is safer if order matters, but here just bulk fetch)
-                # To be safe against missing books in DF:
-                existing_titles = [t for t in saved_book_titles if t in saved_books_df.index]
-                saved_books_df = saved_books_df.reindex(existing_titles).reset_index()
-                saved_books_details = saved_books_df.to_dict('records')
+            if u:
+                cursor.execute("SELECT book_title FROM user_books WHERE user_id = %s", (u['id'],))
+                saved_book_titles = [row['book_title'] for row in cursor.fetchall()]
+            
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            print(f"DB Error fetching books: {e}")
+    else:
+        # Fallback
+        saved_book_titles = users.get(user, {}).get('my_books', [])
+
+    saved_books_details = []
+    if saved_book_titles:
+        # Filter the main books DataFrame to get details for all saved books at once
+        saved_books_df = books[books['Book-Title'].isin(saved_book_titles)].drop_duplicates('Book-Title').set_index('Book-Title')
         
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(e)
+        existing_titles = [t for t in saved_book_titles if t in saved_books_df.index]
+        saved_books_df = saved_books_df.reindex(existing_titles).reset_index()
+        saved_books_details = saved_books_df.to_dict('records')
 
     return render_template('my_books.html', saved_books=saved_books_details)
 
@@ -318,23 +377,30 @@ def add_to_my_books():
     username = session['user']
     
     if book_title:
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
-            res = cursor.fetchone()
-            if res:
-                user_id = res[0]
-                cursor.execute("SELECT * FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
-                if not cursor.fetchone():
-                    cursor.execute("INSERT INTO user_books (user_id, book_title) VALUES (%s, %s)", (user_id, book_title))
-                    conn.commit()
-            
-            cursor.close()
-            conn.close()
-        except Exception as e:
-            print(e)
+        if DB_AVAILABLE:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+                res = cursor.fetchone()
+                if res:
+                    user_id = res[0]
+                    cursor.execute("SELECT * FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
+                    if not cursor.fetchone():
+                        cursor.execute("INSERT INTO user_books (user_id, book_title) VALUES (%s, %s)", (user_id, book_title))
+                        conn.commit()
+                
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                print(e)
+        else:
+            # Fallback
+            if username in users:
+                if book_title not in users[username].get('my_books', []):
+                    users[username].setdefault('my_books', []).append(book_title)
+                    save_users()
             
     return redirect(request.referrer or url_for('index'))
 
@@ -347,21 +413,28 @@ def remove_from_my_books():
     username = session['user']
     
     if book_title:
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
-            res = cursor.fetchone()
-            if res:
-                user_id = res[0]
-                cursor.execute("DELETE FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
-                conn.commit()
+        if DB_AVAILABLE:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
                 
-            cursor.close()
-            conn.close()
-        except:
-            pass
+                cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+                res = cursor.fetchone()
+                if res:
+                    user_id = res[0]
+                    cursor.execute("DELETE FROM user_books WHERE user_id = %s AND book_title = %s", (user_id, book_title))
+                    conn.commit()
+                    
+                cursor.close()
+                conn.close()
+            except:
+                pass
+        else:
+             # Fallback
+            if username in users:
+                if book_title in users[username].get('my_books', []):
+                    users[username]['my_books'].remove(book_title)
+                    save_users()
             
     return redirect(request.referrer or url_for('my_books'))
 

@@ -25,6 +25,9 @@ def index():
     user_input = None
     if request.method == "POST":
         user_input = request.form.get('user_input')
+        if not user_input or not user_input.strip():
+            return render_template('index.html', data=None, user_input=user_input)
+
         data = []
         try:
             # Find the index of the book in the pivot table
@@ -54,7 +57,29 @@ def index():
                     data.append(book_details[['Book-Title', 'Book-Author', 'Image-URL-M']].values[0].tolist())
         except IndexError:
             # This will handle cases where the book is not found in pt.index
-            return render_template('not_found.html', user_input=user_input)
+            # Fallback: Search in the main books dataset for partial matches
+            try:
+                mask = books['Book-Title'].str.contains(user_input_stripped, case=False, regex=False)
+                matches = books[mask]
+                
+                if not matches.empty:
+                    # If found, recommend books by the same author
+                    matched_book = matches.iloc[0]
+                    author = matched_book['Book-Author']
+                    
+                    author_books = books[books['Book-Author'] == author]
+                    recommendations = author_books[author_books['Book-Title'] != matched_book['Book-Title']]
+                    recommendations = recommendations.drop_duplicates('Book-Title').head(5)
+                    
+                    if recommendations.empty:
+                        recommendations = matches.drop_duplicates('Book-Title').head(5)
+                        
+                    for _, row in recommendations.iterrows():
+                        data.append([row['Book-Title'], row['Book-Author'], row['Image-URL-M']])
+                else:
+                    return render_template('not_found.html', user_input=user_input)
+            except:
+                return render_template('not_found.html', user_input=user_input)
     return render_template('index.html', data=data, user_input=user_input)
 
 @app.route('/trending')

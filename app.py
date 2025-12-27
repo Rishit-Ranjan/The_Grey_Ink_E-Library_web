@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, session, redirect, url_for, flash
 import pickle
 import numpy as np
+import requests
 
 # Note: Using a simple dictionary for users. For a real application, use a database.
 users = {} # Structure: {'username': {'password': 'password123', 'my_books': ['Book Title 1', ...]}}
@@ -21,12 +22,23 @@ def welcome():
 # HOME route which also handles search and displays recommendations
 @app.route('/', methods=["GET", "POST"])
 def index():
+    quote = "A room without books is like a body without a soul."
+    author = "Marcus Tullius Cicero"
+    try:
+        response = requests.get("https://dummyjson.com/quotes/random", timeout=2)
+        if response.status_code == 200:
+            data_json = response.json()
+            quote = data_json.get('quote')
+            author = data_json.get('author')
+    except:
+        pass
+
     data = None
     user_input = None
     if request.method == "POST":
         user_input = request.form.get('user_input')
         if not user_input or not user_input.strip():
-            return render_template('index.html', data=None, user_input=user_input)
+            return render_template('index.html', data=None, user_input=user_input, quote=quote, author=author)
 
         data = []
         try:
@@ -80,7 +92,7 @@ def index():
                     return render_template('not_found.html', user_input=user_input)
             except:
                 return render_template('not_found.html', user_input=user_input)
-    return render_template('index.html', data=data, user_input=user_input)
+    return render_template('index.html', data=data, user_input=user_input, quote=quote, author=author)
 
 @app.route('/trending')
 def trending():

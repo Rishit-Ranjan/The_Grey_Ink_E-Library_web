@@ -1,6 +1,3 @@
-flask
-numpy
-pandas
 gunicorn
 requests
 psycopg2-binary

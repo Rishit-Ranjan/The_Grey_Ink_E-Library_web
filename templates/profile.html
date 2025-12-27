@@ -3,8 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Grey Ink | Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
-    <title>The Grey Ink | My Profile</title>
+    <style>
+        /* Modern Profile Styles */
+        .profile-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 100px); /* Adjust for navbar */
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .profile-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 50px;
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .profile-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+            transform: rotate(45deg);
+            pointer-events: none;
+        }
+
+        .avatar-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border: 4px solid rgba(255,255,255,0.2);
+        }
+
+        .username {
+            font-size: 2.2rem;
+            margin: 10px 0 5px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .user-role {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.7;
+            margin-bottom: 30px;
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 35px;
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 15px;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .btn-profile {
+            padding: 14px 25px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-collection {
+            background: white;
+            color: #333;
+            box-shadow: 0 4px 15px rgba(255,255,255,0.2);
+        }
+
+        .btn-collection:hover {
+            background: #f8f9fa;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255,255,255,0.3);
+        }
+
+        .btn-logout {
+            background: transparent;
+            color: #ff6b6b;
+            border: 2px solid #ff6b6b;
+        }
+
+        .btn-logout:hover {
+            background: #ff6b6b;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <div class="bg">
@@ -17,25 +163,37 @@
                 <ul>
                     <li><a href="{{ url_for('category') }}">Categories</a></li>
                     <li><a href="{{ url_for('trending') }}">Trending</a></li>
-                    {% if 'user' in session %}
-                        <li><a href="{{ url_for('profile') }}">Profile</a></li>
-                        <li><a href="{{ url_for('logout') }}" class="black-box">Logout</a></li>
-                    {% else %}
-                        <li><a href="{{ url_for('signup') }}" class="black-box">Sign Up</a></li>
-                    {% endif %}
+                    <li><a href="{{ url_for('profile') }}">Profile</a></li>
+                    <li><a href="{{ url_for('logout') }}" class="black-box">Logout</a></li>
                 </ul>
             </nav>
         </div>
 
-        <div class="container">
-            <h2 class="section-title">My Profile</h2>
-            <hr class="hr-line">
-            <div style="text-align: center; padding: 40px; font-size: 1.2rem;">
-                <p>Welcome, <strong>{{ session.user }}</strong>!</p>
-                <p>Manage your account and book collections here.</p>
-                <a href="{{ url_for('my_books') }}" class="profile-action-button">My Books</a>
+        <div class="profile-wrapper">
+            <div class="profile-card">
+                <div class="avatar-container">
+                    <div class="avatar">
+                        {{ username[0] }}
+                    </div>
+                </div>
+                
+                <h2 class="username">{{ username }}</h2>
+                <div class="user-role">Book Enthusiast</div>
+
+                <div class="stats-container">
+                    <div class="stat-box">
+                        <span class="stat-number">{{ book_count }}</span>
+                        <span class="stat-label">Saved Books</span>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <a href="{{ url_for('my_books') }}" class="btn-profile btn-collection">My Collection</a>
+                    <a href="{{ url_for('logout') }}" class="btn-profile btn-logout">Sign Out</a>
+                </div>
             </div>
         </div>
     </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

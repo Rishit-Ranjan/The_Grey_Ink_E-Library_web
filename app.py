@@ -5,60 +5,33 @@ import requests
 import json
 import os
 import json
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import mysql.connector
 from datetime import datetime
 
-# Database Configuration
-# Render and other cloud providers typically provide a DATABASE_URL
-DATABASE_URL = os.environ.get('DATABASE_URL')
-
-# Fallback for local development if DATABASE_URL is not set
+# MySQL Configuration
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
-DB_USER = os.environ.get('DB_USER', 'postgres')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', 'root')
+DB_USER = os.environ.get('DB_USER', 'root')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', '') # Enter your MySQL password here
 DB_NAME = os.environ.get('DB_NAME', 'library_db')
 
 def get_db_connection():
-    if DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    else:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            dbname=DB_NAME
-        )
-    return conn
+    return mysql.connector.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
+    )
 
 def init_db():
     try:
-        # Connect to default 'postgres' database to create our db if it doesn't exist
-        # Note: In production (Render), the DB is usually already created.
-        # This part handles local setup or environments where we have admin access.
-        if not DATABASE_URL:
-            try:
-                conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname='postgres')
-                conn.autocommit = True
-                cursor = conn.cursor()
-                cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{DB_NAME}'")
-                exists = cursor.fetchone()
-                if not exists:
-                    cursor.execute(f"CREATE DATABASE {DB_NAME}")
-                    print(f"Database {DB_NAME} created.")
-                cursor.close()
-                conn.close()
-            except Exception as e:
-                print(f"Database creation check skipped/failed: {e}")
-
-        conn = get_db_connection()
-        cwd = conn.cursor()
+        conn = mysql.connector.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
+        cursor = conn.cursor()
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+        cursor.execute(f"USE {DB_NAME}")
         
-        # Create Tables
-        # PostgreSQL uses SERIAL for auto-incrementing integers
-        cwd.execute("""
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
+            id INT AUTO_INCREMENT PRIMARY KEY,
             username VARCHAR(255) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL,
             email VARCHAR(255),
@@ -66,18 +39,18 @@ def init_db():
         )
         """)
         
-        cwd.execute("""
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_books (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
             book_title VARCHAR(255),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
         conn.commit()
-        cwd.close()
+        cursor.close()
         conn.close()
-        print("Database tables initialized successfully.")
+        print("Database initialized successfully.")
     except Exception as e:
         print(f"Database initialization failed: {e}")
 
@@ -216,7 +189,7 @@ def login():
         
         try:
             conn = get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
             user = cursor.fetchone()
             cursor.close()
@@ -279,7 +252,7 @@ def profile():
     
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor = conn.cursor(dictionary=True)
         
         cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user_data = cursor.fetchone()
@@ -312,7 +285,7 @@ def my_books():
     
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT id FROM users WHERE username = %s", (user,))
         u = cursor.fetchone()
         

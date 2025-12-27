@@ -1,4 +1,6 @@
 Flask
+numpy
+pandas
 gunicorn
 requests
-psycopg2-binary
+mysql-connector-python
